@@ -5,6 +5,7 @@ const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
+// Cookies options for reusing
 const cookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
@@ -13,6 +14,8 @@ const cookieOptions = {
   path: "/",
 };
 
+
+// controller function for register route
 async function register(req, res) {
   try {
     const { name, email, password } = req.body;
@@ -24,6 +27,7 @@ async function register(req, res) {
       });
     }
 
+    // Checking if email already existing in db
     const exist = await User.findOne({ email });
     if (exist) {
       return res
@@ -31,18 +35,22 @@ async function register(req, res) {
         .json({ success: false, message: "email already in use" });
     }
 
+    // creating user model
     const user = new User({ name, email, password });
 
     const payload = { id: user._id.toString(), role: user.role };
 
+    // creating tokens
     const accessToken = signAccess(payload);
     const refreshToken = signRefresh(payload);
 
+    // hashing refreshToken before saving in to db
     const hash = crypto.createHash("sha256").update(refreshToken).digest("hex");
     user.refreshTokenHash = hash;
 
     await user.save();
 
+    // Sending refresh in cokies and access in response
     res.cookie("refreshToken", refreshToken, cookieOptions);
 
     return res.status(201).json({
@@ -63,6 +71,7 @@ async function register(req, res) {
   }
 }
 
+// controller function for login route
 async function login(req, res) {
   try {
     const { email, password } = req.body;
@@ -74,6 +83,7 @@ async function login(req, res) {
       });
     }
 
+    // checking user existance
     const user = await User.findOne({ email });
     if (!user) {
       return res
@@ -81,6 +91,7 @@ async function login(req, res) {
         .json({ success: false, message: "Invalid credentials" });
     }
 
+    // verifiying password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res
@@ -88,6 +99,7 @@ async function login(req, res) {
         .json({ success: false, message: "Invalid credentials" });
     }
 
+    // creting , hashing , sending tokens                                
     const payload = { id: user._id.toString(), role: user.role };
     const accessToken = signAccess(payload);
     const refreshToken = signRefresh(payload);
@@ -116,6 +128,7 @@ async function login(req, res) {
   }
 }
 
+// controller for sending access by using refresh token(Refershes refresh token too);
 async function refresh(req, res) {
   try {
     const token = req.cookies?.refreshToken;
@@ -124,6 +137,8 @@ async function refresh(req, res) {
         .status(401)
         .json({ success: false, message: "No refresh token" });
     }
+
+    //Try catch below will catch error if jwt token is not valid;
     let payload;
     try {
       payload = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
@@ -135,6 +150,7 @@ async function refresh(req, res) {
         .json({ success: false, message: "Invalid refresh token" });
     }
 
+    // clearing cookie if user is not on db
     const user = await User.findById(payload.id);
     if (!user) {
       res.clearCookie("refreshToken", cookieOptions);
@@ -169,11 +185,45 @@ async function refresh(req, res) {
       .digest("hex");
     user.refreshTokenHash = newHash;
     await user.save();
-    
+
+    //Sending refreshToken in cookies and accessToken in responce
     res.cookie("refreshToken", newRefreshToken, cookieOptions);
-     return res.status(200).json({
+    return res.status(200).json({
       success: true,
       accessToken,
+    });
+  } catch (err) {
+    console.error(err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error" });
+  }
+}
+
+// controller for logout route
+
+async function logout(req,res) {
+  try {
+    const token = req.cookies?.refreshToken;
+    let payload;
+    if (token) {
+      try {
+          payload = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+      const user = await User.findById(payload.id);
+      if (user) {
+        user.refreshTokenHash = null;
+        await user.save();
+      }
+      } catch (err) {
+        console.error("Logout token verify error:", err);
+      }
+     
+    }
+    res.clearCookie("refreshToken", cookieOptions);
+
+    res.status(200).json({
+      success: true,
+      message: "Logged out successfully",
     });
 
   } catch (err) {
@@ -184,4 +234,4 @@ async function refresh(req, res) {
   }
 }
 
-module.exports = { register, login, refresh };
+module.exports = { register, login, refresh, logout };
