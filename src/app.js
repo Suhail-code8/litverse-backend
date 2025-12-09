@@ -4,6 +4,7 @@ const cors = require("cors");
 require('dotenv').config();
 const {register,login,refresh,logout} = require('./controllers/authController')
 const authMiddleware = require('./middlewares/authMiddleware')
+const bookRoutes = require('./routes/bookRoutes')
 const app = express();
 
 app.use(express.json());
@@ -18,6 +19,7 @@ app.get("/", (req, res) => {
   res.send("Hello World");
 });
 
+app.use('/api/books',bookRoutes)
 app.post('/register',register)
 app.post('/login',login)
 app.post('/logout',logout)
