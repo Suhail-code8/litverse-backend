@@ -159,7 +159,7 @@ async function refresh(req, res) {
         .json({ success: false, message: "User not found for this token" });
     }
 
-    // converting incoming token to the one in DB after hashing
+    // hashing incoming token to compare with the one in DB 
     const incomingHash = crypto
       .createHash("sha256")
       .update(token)
