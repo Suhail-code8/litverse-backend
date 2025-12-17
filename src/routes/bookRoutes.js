@@ -11,11 +11,13 @@ const {
 
 const authMiddleware = require("../middlewares/authMiddleware");
 const isAdmin = require("../middlewares/isAdmin");
+const asyncWrapper = require("../utils/asyncWrapper");
 
-router.get("/", getAllBooks);
-router.post("/", authMiddleware, isAdmin, createBook);
-router.put("/:id", authMiddleware, isAdmin, updateBook);
-router.get("/:id", getBookById);
-router.delete("/:id/delete", authMiddleware, isAdmin, deleteBook);
+router.get("/", asyncWrapper(getAllBooks));
+router.get("/:id", asyncWrapper(getBookById));
+
+router.post("/", authMiddleware, isAdmin, asyncWrapper(createBook));
+router.put("/:id", authMiddleware, isAdmin, asyncWrapper(updateBook));
+router.delete("/:id/delete", authMiddleware, isAdmin, asyncWrapper(deleteBook));
 
 module.exports = router;

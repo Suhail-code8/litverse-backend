@@ -1,21 +1,6 @@
 const { Schema, model, Types } = require("mongoose");
 const bcrypt = require('bcryptjs')
 
-const WishlistSchema = Schema(
-  {
-    book: {
-      type: Types.ObjectId,
-      ref: "Book",
-      required: true,
-    },
-    addedAt: {
-      type: Date,
-      default: Date.now,
-    },
-  },
-  { _id: false }
-);
-
 const UserSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -30,7 +15,6 @@ const UserSchema = new Schema(
     role: { type: String, enum: ["user", "admin"], default: "user" },
     refreshTokenHash: { type: String ,default:null},
     isBlocked: { type: Boolean, default: false },
-    wishlist: { type: [WishlistSchema], default: [] },
   },
   { timestamps: true }
 );

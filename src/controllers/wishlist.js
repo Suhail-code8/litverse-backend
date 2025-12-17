@@ -1,116 +1,101 @@
 const Book = require("../models/book");
 const User = require("../models/user");
+const Wishlist = require("../models/wishlist");
+const AppError = require("../utils/AppError");
 
-async function getWishlist(req, res) {
-  try {
-    const userId = req.user.id;
-    const user = await User.findById(userId).populate({
-      path: "wishlist.book",
-      match: { isActive: true },
-    });
+// controller to get wishlist items
+async function getWishlist(req, res, next) {
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
+  const userId = req.user.id;
 
-    const wishlist = user.wishlist.filter((item) => item.book);
-    res.status(200).json({
-      success: true,
-      count: wishlist.length,
-      wishlist,
-    });
-  } catch (err) {
-    console.error("Get wishlist error:", err);
-    return res
-      .status(500)
-      .json({ success: false, message: "Failed to fetch wishlist" });
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new AppError("User not found", 404);
   }
+
+  // fetching wishlist items for this user
+  const wishlistItems = await Wishlist.find({ user: userId }).populate({
+    path: "book",
+    match: { isActive: true }, // filtering inactive books
+  });
+
+  // removing items where book is not available
+  const wishlist = wishlistItems.filter((item) => item.book);
+
+  return res.status(200).json({
+    success: true,
+    count: wishlist.length,
+    wishlist,
+  });
 }
 
-async function addToWishlist(req, res) {
-  try {
-    const userId = req.user.id;
-    const { bookId } = req.body;
-    if (!bookId) {
-    return  res.status(400).json({
-        success: false,
-        message: "Book-Id not provided",
-      });
-    }
-    const book = await Book.findById(bookId);
-    if (!book || !book.isActive) {
-    return res.status(404).json({
-        success: false,
-        message: "Book not found or is inactive",
-      });
-    }
-    const user = await User.findById(userId);
-    if (!user) {
-    return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-    const existance = user.wishlist.some(
-      (item) => item.book.toString() === bookId
-    );
+// controller to add book to wishlist
+async function addToWishlist(req, res, next) {
 
-    if (existance) {
-      await user.populate("wishlist.book");
-    return res.status(200).json({
+  const userId = req.user.id;
+  const { bookId } = req.body;
+
+  if (!bookId) {
+    throw new AppError("Book-Id not provided", 400);
+  }
+
+  // checking book existance and status
+  const book = await Book.findById(bookId);
+  if (!book || !book.isActive) {
+    throw new AppError("Book not found or is inactive", 404);
+  }
+
+  try {
+    // creating wishlist entry 
+    await Wishlist.create({
+      user: userId,
+      book: bookId,
+    });
+  } catch (err) {
+    // if book already exists in wishlist
+    if (err.code === 11000) {
+      return res.status(200).json({
         success: true,
-        message: "Alredy exists in Wishlist",
-        wishlist: user.wishlist,
+        message: "Already exists in Wishlist",
       });
     }
-    user.wishlist.push({ book: bookId });
-    await user.save();
-    await user.populate("wishlist.book");
-    res.status(200).json({
+    throw err;
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: "Book added to wishlist",
+  });
+}
+
+// controller to remove book from wishlist
+async function removeFromWishlist(req, res, next) {
+
+  const userId = req.user.id;
+  const { bookId } = req.params;
+
+  // removing wishlist item for this user and book
+  const result = await Wishlist.findOneAndDelete({
+    user: userId,
+    book: bookId,
+  });
+
+  // if item is not present, still return success
+  if (!result) {
+    return res.status(200).json({
       success: true,
-      message: "Book added to wishlist",
-      wishlist: user.wishlist,
+      message: "No changes (item not in wishlist)",
     });
-  } catch (err) {
-    console.error("Add to wishlist error:", err);
-    return res
-      .status(500)
-      .json({ success: false, message: "Failed to add product to wishlist" });
   }
+
+  return res.status(200).json({
+    success: true,
+    message: "Wishlist updated",
+  });
 }
 
-async function removeFromWishlist(req, res) {
-  try {
-    const userId = req.user.id;
-    const {bookId} = req.params
-    const user = await User.findById(userId)
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    user.wishlist = user.wishlist.filter(item => item.book.toString() !== bookId)
-
-    await user.save()
-    await user.populate('wishlist.book')
-
-    res.status(200).json({
-        success : true,
-        message : "Wishlist updated",
-        wishlist : user.wishlist
-    })
-
-  } catch (err) {
-    console.error("Remove from wishlist error:", err);
-    return res
-      .status(500)
-      .json({ success: false, message: "Failed to remove from wishlist" });
-  }
-}
-
-module.exports = { getWishlist, addToWishlist, removeFromWishlist };
+module.exports = {
+  getWishlist,
+  addToWishlist,
+  removeFromWishlist,
+};

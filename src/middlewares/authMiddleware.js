@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const AppError = require("../utils/AppError");
 require("dotenv").config();
 
 function authMiddleware(req, res, next) {
@@ -6,8 +7,9 @@ function authMiddleware(req, res, next) {
 
   // Checking existance of toke starts with Bearer keyword
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ success: false, message: "Unauthorized" });
+    throw new AppError("Unauthorized", 401);
   }
+
   const token = authHeader.split(" ")[1];
 
   // Try catch will catch error if token verification fails
@@ -17,9 +19,7 @@ function authMiddleware(req, res, next) {
     next();
   } catch (err) {
     console.error("Auth middleware error:", err);
-    res
-      .status(401)
-      .json({ success: false, message: "Invalid or expired access token" });
+    throw new AppError("Invalid or expired access token", 401);
   }
 }
 

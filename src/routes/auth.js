@@ -1,11 +1,18 @@
-const express = require('express')
-const router = express.Router()
+const express = require("express");
+const router = express.Router();
 
-const {register,login,logout,refresh} = require('../controllers/authController')
+const {
+  register,
+  login,
+  logout,
+  refresh,
+} = require("../controllers/authController");
 
-router.post('/register',register)
-router.post('/login',login)
-router.post('/logout',logout)
-router.post('/refresh',refresh)
+const asyncWrapper = require("../utils/asyncWrapper");
 
-module.exports = router
+router.post("/register", asyncWrapper(register));
+router.post("/login", asyncWrapper(login));
+router.post("/logout", asyncWrapper(logout));
+router.post("/refresh", asyncWrapper(refresh));
+
+module.exports = router;
