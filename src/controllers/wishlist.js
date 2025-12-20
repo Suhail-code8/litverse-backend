@@ -17,8 +17,7 @@ async function getWishlist(req, res, next) {
   const wishlistItems = await Wishlist.find({ user: userId }).populate({
     path: "book",
     match: { isActive: true }, // filtering inactive books
-  });
-
+  });  
   // removing items where book is not available
   const wishlist = wishlistItems.filter((item) => item.book);
 

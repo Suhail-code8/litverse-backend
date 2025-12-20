@@ -76,6 +76,9 @@ async function login(req, res, next) {
   if (!user) {
     throw new AppError("Invalid credentials", 401);
   }
+    if (user.isBlocked === true) {
+    throw new AppError("User is blocked", 403);
+  }
 
   // verifiying password
   const isMatch = await bcrypt.compare(password, user.password);
@@ -171,8 +174,9 @@ async function refresh(req, res, next) {
 async function logout(req, res, next) {
 
   const token = req.cookies?.refreshToken;
-
+  console.log("Logout called")
   if (token) {
+            
     try {
       const payload = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
       const user = await User.findById(payload.id);
@@ -186,7 +190,13 @@ async function logout(req, res, next) {
     }
   }
 
-  res.clearCookie("refreshToken", cookieOptions);
+  res.clearCookie("refreshToken", {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  maxAge: -1,
+  path: "/",
+});
 
   return res.status(200).json({
     success: true,

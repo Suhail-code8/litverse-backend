@@ -10,6 +10,7 @@ const BookSchema = new Schema(
     category: { type: String, required: true },
     description: { type: String },
     stock: { type: Number, default: 0 },
+    pages: { type: Number, default: 0 },
     rating: { type: Number, default: 0 },
     language: { type: String, default: "English" },
     isActive: { type: Boolean, default: true },
