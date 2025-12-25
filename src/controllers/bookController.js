@@ -1,6 +1,7 @@
 const Book = require("../models/book");
 const AppError = require("../utils/AppError");
 const mongoose = require("mongoose");
+const cloudinary = require('../config/cloudinary')
 
 async function getAllBooks(req, res, next) {
   let books;
@@ -39,7 +40,6 @@ async function createBook(req, res, next) {
     author,
     price,
     costPrice,
-    image,
     category,
     description,
     stock,
@@ -48,11 +48,15 @@ async function createBook(req, res, next) {
     pages,
   } = req.body;
 
-  if (!title || !author || !price || !image || !category) {
+  if (!title || !author || !price || !category) {
     throw new AppError("Required fields are missing", 400);
   }
 
-  // Check if book with same title already exists (case-insensitive)
+  if (!req.file) {
+    throw new AppError("Book image is required", 400);
+  }
+
+  // Check duplicate title
   const existingBook = await Book.findOne({
     title: { $regex: `^${title}$`, $options: "i" },
   });
@@ -60,18 +64,27 @@ async function createBook(req, res, next) {
     throw new AppError(`Book with title "${title}" already exists`, 409);
   }
 
+  // Upload image to Cloudinary
+  const uploadResult = await cloudinary.uploader.upload(
+    `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`,
+    { folder: "books" }
+  );
+
   const book = await Book.create({
     title,
     author,
     price,
     costPrice: costPrice || 0,
-    image,
     category,
     description,
     stock,
     rating,
     language,
     pages,
+    image: {
+      url: uploadResult.secure_url,
+      publicId: uploadResult.public_id,
+    },
   });
 
   return res.status(201).json({
@@ -80,6 +93,7 @@ async function createBook(req, res, next) {
   });
 }
 
+
 async function updateBook(req, res, next) {
   const { id } = req.params;
 
@@ -87,12 +101,16 @@ async function updateBook(req, res, next) {
     throw new AppError("Invalid book id", 400);
   }
 
+  const book = await Book.findById(id);
+  if (!book) {
+    throw new AppError("Book not found", 404);
+  }
+
   const allowedFields = [
     "title",
     "author",
     "price",
     "costPrice",
-    "image",
     "category",
     "description",
     "stock",
@@ -107,32 +125,39 @@ async function updateBook(req, res, next) {
     if (req.body[f] !== undefined) updates[f] = req.body[f];
   });
 
+  // If new image uploaded → replace old image
+  if (req.file) {
+    if (book.image?.publicId) {
+      await cloudinary.uploader.destroy(book.image.publicId);
+    }
+
+    const uploadResult = await cloudinary.uploader.upload(
+      `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`,
+      { folder: "books" }
+    );
+
+    updates.image = {
+      url: uploadResult.secure_url,
+      publicId: uploadResult.public_id,
+    };
+  }
+
   if (Object.keys(updates).length === 0) {
     throw new AppError("No valid fields provided for update", 400);
   }
 
-  console.log("Updating book", id, updates);
-
-  const book = await Book.findByIdAndUpdate(
+  const updatedBook = await Book.findByIdAndUpdate(
     id,
     { $set: updates },
-    {
-      new: true,
-      runValidators: true,
-    }
+    { new: true, runValidators: true }
   );
-
-  console.log("Update result for book", id, book);
-
-  if (!book) {
-    throw new AppError("Book not found", 404);
-  }
 
   return res.status(200).json({
     success: true,
-    book,
+    book: updatedBook,
   });
 }
+
 
 async function deleteBook(req, res, next) {
   const { id } = req.params;
@@ -142,6 +167,10 @@ async function deleteBook(req, res, next) {
     throw new AppError("Book not found", 404);
   }
 
+  if (book.image?.publicId) {
+    await cloudinary.uploader.destroy(book.image.publicId);
+  }
+
   await book.deleteOne();
 
   return res.status(200).json({
@@ -149,6 +178,7 @@ async function deleteBook(req, res, next) {
     message: "Book deleted successfully",
   });
 }
+
 
 module.exports = {
   getAllBooks,

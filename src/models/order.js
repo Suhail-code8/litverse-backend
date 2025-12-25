@@ -31,6 +31,24 @@ const OrderSchema = new Schema(
       required: true,
     },
 
+    // 🔥 NEW — PAYMENT INFO
+    paymentMethod: {
+      type: String,
+      enum: ["cod", "razorpay"],
+      required: true,
+    },
+
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "paid"],
+      default: "pending",
+    },
+
+    paymentId: {
+      type: String, // Razorpay payment id
+    },
+
+    // 🔥 ORDER STATUS (SHIPPING)
     status: {
       type: String,
       enum: ["pending", "shipped", "delivered", "cancelled"],
@@ -40,4 +58,6 @@ const OrderSchema = new Schema(
   { timestamps: true }
 );
 
-module.exports = model("Order", OrderSchema);
+const Order = model("Order", OrderSchema);
+
+module.exports = Order

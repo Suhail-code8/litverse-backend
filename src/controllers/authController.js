@@ -28,7 +28,7 @@ async function register(req, res, next) {
   // Checking if email already existing in db
   const exist = await User.findOne({ email });
   if (exist) {
-    throw new AppError("email already in use", 409);
+    throw new AppError("username or email already exist", 409);
   }
 
   // creating user model
@@ -190,13 +190,7 @@ async function logout(req, res, next) {
     }
   }
 
-  res.clearCookie("refreshToken", {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-  maxAge: -1,
-  path: "/",
-});
+  res.clearCookie("refreshToken",cookieOptions);
 
   return res.status(200).json({
     success: true,

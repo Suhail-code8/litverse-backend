@@ -12,12 +12,13 @@ const {
 const authMiddleware = require("../middlewares/authMiddleware");
 const isAdmin = require("../middlewares/isAdmin");
 const asyncWrapper = require("../utils/asyncWrapper");
+const upload = require("../middlewares/upload");
 
 router.get("/", asyncWrapper(getAllBooks));
 router.get("/:id", asyncWrapper(getBookById));
 
-router.post("/", authMiddleware, isAdmin, asyncWrapper(createBook));
-router.put("/:id", authMiddleware, isAdmin, asyncWrapper(updateBook));
-router.delete("/:id/delete", authMiddleware, isAdmin, asyncWrapper(deleteBook));
+router.post("/", authMiddleware, isAdmin,upload.single("image"), asyncWrapper(createBook));
+router.put("/:id", authMiddleware, isAdmin,upload.single("image"), asyncWrapper(updateBook));
+router.delete("/:id/delete", authMiddleware, isAdmin,upload.single("image"), asyncWrapper(deleteBook));
 
 module.exports = router;

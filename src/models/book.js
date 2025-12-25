@@ -5,8 +5,11 @@ const BookSchema = new Schema(
     title: { type: String, required: true, trim: true },
     author: { type: String, required: true, trim: true },
     price: { type: Number, required: true },
-    costPrice: { type: Number, default: 0 }, // 👈 for profit calc
-    image: { type: String, required: true },
+    costPrice: { type: Number, default: 0 },
+    image: {
+      url: { type: String, default: "" },
+      publicId: { type: String, default: "" },
+    },
     category: { type: String, required: true },
     description: { type: String },
     stock: { type: Number, default: 0 },

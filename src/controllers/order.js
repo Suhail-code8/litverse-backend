@@ -8,48 +8,85 @@ const AppError = require("../utils/AppError");
 // =========================
 async function createOrder(req, res) {
   const userId = req.user.id;
+  const { single, bookId, paymentMethod, paymentStatus, paymentId } = req.body;
 
-  const cart = await Cart.findOne({ user: userId }).populate("items.book");
-
-  if (!cart || cart.items.length === 0) {
-    throw new AppError("Cart is empty", 400);
-  }
-
+  let orderItems = [];
   let total = 0;
 
-  const orderItems = cart.items.map((item) => {
-    if (item.qty > item.book.stock) {
-      throw new AppError(
-        `Insufficient stock for ${item.book.title}`,
-        400
-      );
+  // =========================
+  // 🟢 SINGLE PRODUCT ORDER
+  // =========================
+  if (single && bookId) {
+    const book = await Book.findById(bookId);
+
+    if (!book) {
+      throw new AppError("Book not found", 404);
     }
 
-    total += item.qty * item.book.price;
+    if (book.stock < 1) {
+      throw new AppError("Book out of stock", 400);
+    }
 
-    return {
-      book: item.book._id,
-      qty: item.qty,
-      price: item.book.price,
-    };
-  });
+    orderItems.push({
+      book: book._id,
+      qty: 1,
+      price: book.price,
+    });
 
-  // Reduce stock
-  for (const item of cart.items) {
-    await Book.findByIdAndUpdate(item.book._id, {
-      $inc: { stock: -item.qty },
+    total = book.price;
+
+    // Reduce stock
+    await Book.findByIdAndUpdate(book._id, {
+      $inc: { stock: -1 },
     });
   }
 
+  // =========================
+  // 🟢 CART BASED ORDER
+  // =========================
+  else {
+    const cart = await Cart.findOne({ user: userId }).populate("items.book");
+
+    if (!cart || cart.items.length === 0) {
+      throw new AppError("Cart is empty", 400);
+    }
+
+    for (const item of cart.items) {
+      if (item.qty > item.book.stock) {
+        throw new AppError(`Insufficient stock for ${item.book.title}`, 400);
+      }
+
+      total += item.qty * item.book.price;
+
+      orderItems.push({
+        book: item.book._id,
+        qty: item.qty,
+        price: item.book.price,
+      });
+    }
+
+    // Reduce stock
+    for (const item of cart.items) {
+      await Book.findByIdAndUpdate(item.book._id, {
+        $inc: { stock: -item.qty },
+      });
+    }
+
+    // Clear cart
+    cart.items = [];
+    await cart.save();
+  }
+
+  // =========================
+  // 🟢 CREATE ORDER
+  // COD ONLY
   const order = await Order.create({
     user: userId,
     items: orderItems,
     total,
+    paymentMethod: "cod",
+    paymentStatus: "pending",
   });
-
-  // Clear cart
-  cart.items = [];
-  await cart.save();
 
   return res.status(201).json({
     success: true,
@@ -57,9 +94,6 @@ async function createOrder(req, res) {
   });
 }
 
-// =========================
-// USER ORDERS
-// =========================
 async function getUserOrders(req, res) {
   const orders = await Order.find({ user: req.user.id })
     .populate("items.book")
@@ -68,21 +102,16 @@ async function getUserOrders(req, res) {
   res.json({ success: true, orders });
 }
 
-// =========================
-// ADMIN ORDERS
-// =========================
 async function getAllOrders(req, res) {
   const orders = await Order.find()
     .populate("user", "name email")
     .populate("items.book")
     .sort({ createdAt: -1 });
+console.log(orders);
 
   res.json({ success: true, orders });
 }
 
-// =========================
-// UPDATE STATUS (ADMIN)
-// =========================
 async function updateOrderStatus(req, res) {
   const { status } = req.body;
 
