@@ -55,9 +55,9 @@ async function getReviewsByBook(req, res, next) {
   const reviews = await Review.find({ book: bookId })
     .populate({
       path: "user",
-      select: "name", // minimal user info
+      select: "name", 
     })
-    .sort({ createdAt: -1 }); // latest first
+    .sort({ createdAt: -1 }); 
 
   return res.status(200).json({
     success: true,

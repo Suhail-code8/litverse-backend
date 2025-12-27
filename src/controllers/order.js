@@ -3,9 +3,9 @@ const Order = require("../models/order");
 const Book = require("../models/book");
 const AppError = require("../utils/AppError");
 
-// =========================
-// CREATE ORDER (USER)
-// =========================
+
+// CREATE ORDER 
+
 async function createOrder(req, res) {
   const userId = req.user.id;
   const { single, bookId, paymentMethod, paymentStatus, paymentId } = req.body;
@@ -13,9 +13,9 @@ async function createOrder(req, res) {
   let orderItems = [];
   let total = 0;
 
-  // =========================
-  // 🟢 SINGLE PRODUCT ORDER
-  // =========================
+  
+  // SINGLE PRODUCT ORDER
+  
   if (single && bookId) {
     const book = await Book.findById(bookId);
 
@@ -41,9 +41,9 @@ async function createOrder(req, res) {
     });
   }
 
-  // =========================
-  // 🟢 CART BASED ORDER
-  // =========================
+
+  // CART BASED ORDER
+
   else {
     const cart = await Cart.findOne({ user: userId }).populate("items.book");
 
@@ -77,8 +77,7 @@ async function createOrder(req, res) {
     await cart.save();
   }
 
-  // =========================
-  // 🟢 CREATE ORDER
+  // CREATE ORDER
   // COD ONLY
   const order = await Order.create({
     user: userId,
@@ -107,8 +106,6 @@ async function getAllOrders(req, res) {
     .populate("user", "name email")
     .populate("items.book")
     .sort({ createdAt: -1 });
-console.log(orders);
-
   res.json({ success: true, orders });
 }
 

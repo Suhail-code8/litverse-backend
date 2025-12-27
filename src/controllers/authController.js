@@ -4,6 +4,11 @@ const { signAccess, signRefresh } = require("../utils/token");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const AppError = require("../utils/AppError");
+const sendMail = require("../utils/sendMail");
+const { OAuth2Client } = require("google-auth-library");
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+
 require("dotenv").config();
 
 // Cookies options for reusing
@@ -198,4 +203,194 @@ async function logout(req, res, next) {
   });
 }
 
-module.exports = { register, login, refresh, logout };
+
+
+// FORGOT PASSWORD
+
+async function forgotPassword(req, res, next) {
+  const { email } = req.body;
+
+  if (!email) {
+    throw new AppError("Email is required", 400);
+  }
+
+  const user = await User.findOne({ email });
+
+  // Always respond success
+  if (!user) {
+    return res.status(200).json({
+      success: true,
+      message: "If this email exists, a reset link has been sent",
+    });
+  }
+
+
+  // Generate reset token
+  const resetToken = crypto.randomBytes(32).toString("hex");
+
+  // Hash token for DB
+  const resetTokenHash = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
+
+  user.resetPasswordTokenHash = resetTokenHash;
+  user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 min expiry time
+
+  await user.save();
+
+  const resetUrl = `${process.env.CLIENT_URI}/reset-password/${resetToken}`;
+
+  await sendMail({
+    to: user.email,
+    subject: "Reset your password",
+    html: `
+      <p>You requested a password reset.</p>
+      <p>This link is valid for 15 minutes.</p>
+      <a href="${resetUrl}">Reset Password</a>
+      <p>If you didn’t request this, ignore this email.</p>
+    `,
+  });
+
+  return res.status(200).json({
+    success: true,
+    message: "If this email exists, a reset link has been sent",
+  });
+}
+
+
+
+// RESET PASSWORD 
+
+async function resetPassword(req, res, next) {
+  const { token } = req.params;
+  const { password } = req.body;
+
+  if (!password || password.length < 6) {
+    throw new AppError("Password must be at least 6 characters", 400);
+  }
+
+  const hashedToken = crypto
+    .createHash("sha256")
+    .update(token)
+    .digest("hex");
+
+  const user = await User.findOne({
+    resetPasswordTokenHash: hashedToken,
+    resetPasswordExpires: { $gt: Date.now() },
+  });
+
+  if (!user) {
+    throw new AppError("Invalid or expired reset link", 400);
+  }
+
+  // Update password 
+  user.password = password;
+
+  // Clear reset datas
+  user.resetPasswordTokenHash = null;
+  user.resetPasswordExpires = null;
+
+  // deactivate existing sessions so user should need to login again
+  user.refreshTokenHash = null;
+
+  await user.save();
+
+  return res.status(200).json({
+    success: true,
+    message: "Password reset successful. Please login again.",
+  });
+}
+
+async function getUser (req, res){
+  const user = await User.findById(req.user.id).select("-password");
+  res.status(200).json({
+    success: true,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      createdAt : user.createdAt
+    },
+  });
+}
+
+
+// GOOGLE AUTH
+
+async function googleAuth(req, res, next) {
+  const { credential } = req.body; // ID token from frontend
+
+  if (!credential) {
+    throw new AppError("Google credential missing", 400);
+  }
+
+  // 1️⃣ Verify token with Google
+  const ticket = await googleClient.verifyIdToken({
+    idToken: credential,
+    audience: process.env.GOOGLE_CLIENT_ID,
+  });
+
+  const payload = ticket.getPayload();
+  const { sub, email, name, email_verified } = payload;
+
+  if (!email_verified) {
+    throw new AppError("Google email not verified", 401);
+  }
+
+  // 2️⃣ Find or create user
+  let user = await User.findOne({ email });
+
+  if (!user) {
+    user = new User({
+      name,
+      email,
+      password: crypto.randomBytes(32).toString("hex"), // dummy
+      googleId: sub,
+    });
+  }
+
+  if (user.isBlocked) {
+    throw new AppError("User is blocked", 403);
+  }
+
+  // 3️⃣ Issue tokens (same as normal login)
+  const jwtPayload = { id: user._id.toString(), role: user.role };
+
+  const accessToken = signAccess(jwtPayload);
+  const refreshToken = signRefresh(jwtPayload);
+
+  const hash = crypto
+    .createHash("sha256")
+    .update(refreshToken)
+    .digest("hex");
+
+  user.refreshTokenHash = hash;
+  await user.save();
+
+  res.cookie("refreshToken", refreshToken, cookieOptions);
+
+  return res.status(200).json({
+    success: true,
+    accessToken,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    },
+  });
+}
+
+
+module.exports = {
+  register,
+  login,
+  refresh,
+  logout,
+  forgotPassword,
+  resetPassword,
+  getUser,
+  googleAuth
+};

@@ -83,7 +83,7 @@ async function addToCart(req, res, next) {
   } else {
     cart.items.push({
       book: bookId,
-      qty: 1,
+      qty: 1, 
       priceAtAdd: book.price,
     });
   }

@@ -10,14 +10,13 @@ exports.createPaymentOrder = async (req, res, next) => {
   try {
     const { amount } = req.body;
 
-    console.log("Create Razorpay Order Amount:", amount);
 
     if (!amount || amount <= 0) {
       throw new AppError("Invalid payment amount", 400);
     }
 
     const order = await razorpay.orders.create({
-      amount: Math.round(Number(amount) * 100), // INR → paise
+      amount: Math.round(Number(amount) * 100), 
       currency: "INR",
       receipt: `rcpt_${Date.now()}`,
     });
@@ -54,7 +53,6 @@ exports.verifyPayment = async (req, res) => {
     throw new AppError("Invalid payment signature", 400);
   }
 
-  // ✅ PAYMENT VERIFIED — CREATE ORDER HERE
   let items = [];
   let total = 0;
 

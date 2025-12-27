@@ -31,7 +31,7 @@ const OrderSchema = new Schema(
       required: true,
     },
 
-    // 🔥 NEW — PAYMENT INFO
+
     paymentMethod: {
       type: String,
       enum: ["cod", "razorpay"],
@@ -45,10 +45,10 @@ const OrderSchema = new Schema(
     },
 
     paymentId: {
-      type: String, // Razorpay payment id
+      type: String,
     },
 
-    // 🔥 ORDER STATUS (SHIPPING)
+
     status: {
       type: String,
       enum: ["pending", "shipped", "delivered", "cancelled"],
